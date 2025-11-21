@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name          Mega Ad Dodger 3000 (Stealth Reactor Core) 1.0
+// @name          Mega Ad Dodger 3000 (Claude Version) 1.0
 // @version       1.0
-// @description   🛡️ Stealth Reactor Core: Blocks Twitch ads with self-healing.
+// @description   🛡️ Claude Version: Blocks Twitch ads with self-healing.
 // @author        Senior Expert AI
 // @match         *://*.twitch.tv/*
 // @run-at        document-start
@@ -12,7 +12,7 @@
     'use strict';
 
     /**
-     * MEGA AD DODGER 3000 (Stealth Reactor Core)
+     * MEGA AD DODGER 3000 (Claude Version)
      * A monolithic, self-contained userscript for Twitch ad blocking.
      * 
     */
