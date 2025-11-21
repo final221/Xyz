@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name          Mega Ad Dodger 3000 (Claude Version) 1.0
-// @version       1.0
+// @name          Mega Ad Dodger 3000 (Claude Version)
+// @version       1.01
 // @description   🛡️ Claude Version: Blocks Twitch ads with self-healing.
 // @author        Senior Expert AI
 // @match         *://*.twitch.tv/*
@@ -548,7 +548,10 @@
                 try {
                     Logger.add('Resilience execution started');
                     const video = container.querySelector(CONFIG.selectors.VIDEO);
-                    if (!video) return;
+                    if (!video) {
+                        Logger.add('Resilience aborted: No video element found');
+                        return;
+                    }
 
                     // 1. Capture State
                     const wasPaused = video.paused;
@@ -568,47 +571,70 @@
                     await Fn.sleep(100);
                     Logger.add('Video source cleared');
 
-                    // 3. Restore Source with Cache Busting
-                    // @strategy Force the browser to treat this as a new stream by appending a timestamp.
-                    //           This bypasses internal player caches that might still hold the ad segment.
-                    const currentSrc = window.location.href;
-                    // Handle existing hash
-                    const [baseUrl, hash] = currentSrc.split('#');
-                    const separator = baseUrl.includes('?') ? '&' : '?';
-                    const newSrc = `${baseUrl}${separator}t=${Date.now()}${hash ? '#' + hash : ''}`;
-                    Logger.add('Video source restored', { newSrc });
+                    // 3. Wait for Twitch to Reload
+                    // The cleared source triggers Twitch's monitoring to reload the stream
+                    Logger.add('Waiting for Twitch player to reload stream');
 
-                    // Wait for canplay event before playing
+                    // Wait for Twitch to reload the stream
                     await new Promise((resolve) => {
-                        const handler = () => {
-                            video.removeEventListener('canplay', handler);
-                            resolve();
-                        };
-                        video.addEventListener('canplay', handler);
+                        let checkCount = 0;
+                        const maxChecks = 25; // 25 * 100ms = 2.5 seconds max
 
-                        // Set source after listener is attached
-                        video.src = newSrc;
-                        video.load();
+                        const checkReady = setInterval(() => {
+                            checkCount++;
 
-                        // Timeout fallback
-                        setTimeout(() => {
-                            video.removeEventListener('canplay', handler);
-                            resolve();
-                        }, CONFIG.timing.PLAYBACK_TIMEOUT_MS);
+                            // Check if video has reloaded (readyState 2+ means data is available)
+                            if (video.readyState >= 2) {
+                                clearInterval(checkReady);
+                                Logger.add('Video reloaded successfully', {
+                                    readyState: video.readyState,
+                                    checks: checkCount
+                                });
+                                resolve();
+                            }
+                            // Timeout after max checks
+                            else if (checkCount >= maxChecks) {
+                                clearInterval(checkReady);
+                                Logger.add('Video reload timeout', {
+                                    readyState: video.readyState,
+                                    checks: checkCount
+                                });
+                                resolve(); // Don't block forever
+                            }
+                        }, 100); // Check every 100ms
                     });
 
-                    // 4. Restore State
-                    video.currentTime = currentTime;
-                    video.playbackRate = playbackRate;
-                    video.volume = volume;
-                    video.muted = muted;
-                    Logger.add('Restoring player state', { currentTime, wasPaused });
+                    // 4. Restore State with Validation
+                    try {
+                        // Only restore time if video has valid duration
+                        if (video.duration && !isNaN(video.duration) && video.duration > 0) {
+                            // Clamp to valid range (avoid seeking past end)
+                            const safeTime = Math.max(0, Math.min(currentTime, video.duration - 0.5));
+                            video.currentTime = safeTime;
+                            Logger.add('Restored currentTime', { original: currentTime, safe: safeTime, duration: video.duration });
+                        } else {
+                            Logger.add('Cannot restore currentTime - invalid duration', { duration: video.duration });
+                        }
+
+                        video.playbackRate = playbackRate;
+                        video.volume = volume;
+                        video.muted = muted;
+
+                        Logger.add('Player state restored', { wasPaused, volume, muted });
+                    } catch (e) {
+                        Logger.add('State restoration error', { error: e.message });
+                    }
 
                     if (!wasPaused) {
                         try {
                             await video.play();
+                            Logger.add('Playback resumed successfully');
                         } catch (e) {
-                            // Ignore play errors
+                            Logger.add('Play failed (not critical)', {
+                                error: e.message,
+                                name: e.name
+                            });
+                            // Not critical - user can manually play if needed
                         }
                     }
 
