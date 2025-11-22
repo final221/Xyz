@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mega Ad Dodger 3000 (Claude Version)
-// @version       1.02
+// @version       1.04
 // @description   🛡️ Claude Version: Blocks Twitch ads with self-healing.
 // @author        Senior Expert AI
 // @match         *://*.twitch.tv/*
@@ -115,7 +115,17 @@
             let timeout;
             return function (...args) {
                 clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(this, args), delay);
+                timeout = setTimeout(() => {
+                    try {
+                        func.apply(this, args);
+                    } catch (error) {
+                        Logger.add('Debounce error', {
+                            function: func.name || 'anonymous',
+                            error: error.message,
+                            stack: error.stack
+                        });
+                    }
+                }, delay);
             };
         }
     };
@@ -290,7 +300,15 @@
 
         const hydrate = Fn.pipe(
             Adapters.Storage.read,
-            (json) => json ? JSON.parse(json) : null,
+            (json) => {
+                if (!json) return null;
+                try {
+                    return JSON.parse(json);
+                } catch (e) {
+                    Logger.add('Store hydration failed - corrupt data', { error: e.message });
+                    return null;
+                }
+            },
             (data) => (data && Date.now() - data.timestamp <= CONFIG.timing.LOG_EXPIRY_MIN * 60 * 1000) ? data : null
         );
 
