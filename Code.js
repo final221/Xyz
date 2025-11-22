@@ -210,6 +210,17 @@
         const logs = [];
         const MAX_LOGS = 5000;
 
+        const metrics = {
+            ads_detected: 0,
+            ads_blocked: 0,
+            resilience_executions: 0,
+            cache_hits: 0,
+            cache_misses: 0,
+            health_triggers: 0,
+            errors: 0,
+            session_start: Date.now()
+        };
+
         return {
             add: (message, detail = null) => {
                 if (logs.length >= MAX_LOGS) logs.shift();
@@ -219,6 +230,18 @@
                     detail
                 });
             },
+            addMetric: (category, increment = 1) => {
+                if (metrics[category] !== undefined) {
+                    metrics[category] += increment;
+                }
+            },
+            getMetrics: () => ({
+                ...metrics,
+                uptime_ms: Date.now() - metrics.session_start,
+                block_rate: metrics.ads_detected > 0
+                    ? (metrics.ads_blocked / metrics.ads_detected * 100).toFixed(2) + '%'
+                    : 'N/A'
+            }),
             init: () => {
                 // Capture global errors
                 window.addEventListener('error', (event) => {
