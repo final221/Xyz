@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mega Ad Dodger 3000 (Claude Version)
-// @version       1.01
+// @version       1.02
 // @description   🛡️ Claude Version: Blocks Twitch ads with self-healing.
 // @author        Senior Expert AI
 // @match         *://*.twitch.tv/*
@@ -417,17 +417,42 @@
 
         return {
             get: (element) => {
-                if (cachedContext) return cachedContext;
+                if (cachedContext) {
+                    // Validate cached context structure
+                    const hasK0 = keyMap.k0 && typeof cachedContext[keyMap.k0] === 'function';
+                    const hasK1 = keyMap.k1 && typeof cachedContext[keyMap.k1] === 'function';
+                    const hasK2 = keyMap.k2 && typeof cachedContext[keyMap.k2] === 'function';
+                    const isValid = hasK0 && hasK1 && hasK2;
+
+                    // Get current video element for comparison
+                    const currentVideo = element?.querySelector(CONFIG.selectors.VIDEO);
+
+                    Logger.add('PlayerContext: Cache validation', {
+                        isValid,
+                        hasK0,
+                        hasK1,
+                        hasK2,
+                        videoElementExists: !!currentVideo
+                    });
+
+                    if (!isValid) {
+                        Logger.add('PlayerContext: ⚠️ CACHED CONTEXT INVALID - but still using it');
+                    }
+
+                    return cachedContext;
+                }
                 if (!element) return null;
                 for (const k in element) {
                     if (k.startsWith('__react') || k.startsWith('__vue') || k.startsWith('__next')) {
                         const ctx = searchRecursive(element[k]);
                         if (ctx) {
                             cachedContext = ctx;
+                            Logger.add('PlayerContext: Fresh context found and cached');
                             return ctx;
                         }
                     }
                 }
+                Logger.add('PlayerContext: Scan failed - no context found');
                 return null;
             },
             reset: () => {
